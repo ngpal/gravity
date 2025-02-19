@@ -1,6 +1,13 @@
+use std::{thread, time::Duration};
+
 use bevy::prelude::*;
 
-const BIG_G: f32 = 100.;
+const BIG_G: f32 = 10.;
+const STAR_MASS: f32 = 100.;
+const STAR_RADIUS: f32 = 20.;
+const PLANET_MASS: f32 = 10.;
+const PLANET_RADIUS: f32 = 10.;
+const INITIAL_PLANET_X: f32 = 2.;
 
 #[derive(Component)]
 struct Velocity(Vec3);
@@ -8,11 +15,14 @@ struct Velocity(Vec3);
 #[derive(Component)]
 struct Mass(f32);
 
+#[derive(Component)]
+struct Trail(u8);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, startup)
-        .add_systems(Update, update)
+        .add_systems(Update, (update, manage_trail).chain())
         .run();
 }
 
@@ -24,17 +34,17 @@ fn startup(
     commands.spawn(Camera2d);
 
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(20.))),
+        Mesh2d(meshes.add(Circle::new(STAR_RADIUS))),
         MeshMaterial2d(materials.add(Color::BLACK)),
-        Mass(25.),
+        Mass(STAR_MASS),
         Transform::from_xyz(0., 0., 0.),
     ));
 
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(10.))),
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Mass(10.),
-        Velocity(Vec3::new(5., 0., 0.)),
+        Mass(PLANET_MASS),
+        Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Transform::from_xyz(0., 100., 0.),
     ));
 }
@@ -64,4 +74,32 @@ fn update(
 
     // Update position
     planet_transform.translation += planet_vel.0;
+
+    thread::sleep(Duration::from_millis(10));
+}
+
+fn manage_trail(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut trails: Query<(Entity, &mut Transform, &mut Trail), Without<Velocity>>,
+    planets: Query<&Transform, With<Velocity>>,
+) {
+    for &transform in planets.iter() {
+        commands.spawn((
+            Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
+            MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.25))),
+            Trail(100),
+            transform,
+        ));
+    }
+
+    for (entity, mut transform, mut trail) in trails.iter_mut() {
+        trail.0 -= 1;
+        transform.scale -= 0.01;
+
+        if trail.0 == 0 {
+            commands.entity(entity).despawn();
+        }
+    }
 }
