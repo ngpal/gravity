@@ -3,11 +3,14 @@ use std::{thread, time::Duration};
 use bevy::prelude::*;
 
 const BIG_G: f32 = 50.;
+
 const STAR_MASS: f32 = 100.;
 const STAR_RADIUS: f32 = 10.;
+
 const PLANET_MASS: f32 = 1.;
 const PLANET_RADIUS: f32 = 5.;
 const INITIAL_PLANET_X: f32 = 5.;
+
 const TRAIL_LENGTH: f32 = 100.;
 
 #[derive(Component)]
@@ -60,6 +63,14 @@ fn startup(
         Mass(PLANET_MASS),
         Planet(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Transform::from_xyz(0., 100., 0.),
+    ));
+
+    commands.spawn((
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
+        MeshMaterial2d(materials.add(Color::WHITE)),
+        Mass(PLANET_MASS),
+        Planet(Vec3::new(-INITIAL_PLANET_X, 0., 0.)),
+        Transform::from_xyz(0., 200., 0.),
     ));
 }
 
