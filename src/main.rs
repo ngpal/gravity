@@ -11,7 +11,9 @@ const PLANET_MASS: f32 = 1.;
 const PLANET_RADIUS: f32 = 5.;
 const INITIAL_PLANET_X: f32 = 5.;
 
-const TRAIL_LENGTH: f32 = 20.;
+const TRAIL_LENGTH: f32 = 30.;
+
+const TRAIL_FREQ: u32 = 2;
 
 #[derive(Component)]
 struct Planet(f32);
@@ -70,13 +72,14 @@ fn startup(
         Transform::from_xyz(0., 100., 0.),
     ));
 
+    let modifier = 1.5;
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * modifier))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Planet(PLANET_RADIUS),
+        Planet(PLANET_RADIUS * modifier),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
-        Mass(PLANET_MASS),
-        Transform::from_xyz(0., 125., 0.),
+        Mass(PLANET_MASS * modifier),
+        Transform::from_xyz(0., 160., 0.),
     ));
 
     commands.spawn((
@@ -85,7 +88,7 @@ fn startup(
         Planet(PLANET_RADIUS * 2.0),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS * 2.0),
-        Transform::from_xyz(0., 200., 0.),
+        Transform::from_xyz(0., 190., 0.),
     ));
 }
 
@@ -133,7 +136,7 @@ fn recenter_camera(
 }
 
 fn skip_frames(time: Res<FrameCount>) -> bool {
-    time.0 % 2 == 0
+    time.0 % TRAIL_FREQ == 0
 }
 
 fn create_trail(
