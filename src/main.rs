@@ -1,6 +1,6 @@
 use std::{thread, time::Duration};
 
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 const BIG_G: f32 = 50.;
 
@@ -14,16 +14,19 @@ const INITIAL_PLANET_X: f32 = 5.;
 const TRAIL_LENGTH: f32 = 100.;
 
 #[derive(Component)]
-struct Planet(Vec3);
+struct Planet;
+
+#[derive(Component)]
+struct Star;
+
+#[derive(Component)]
+struct Velocity(Vec3);
 
 #[derive(Component)]
 struct Mass(f32);
 
 #[derive(Component)]
 struct Trail(f32);
-
-#[derive(Component)]
-struct Star(Vec3);
 
 fn main() {
     App::new()
@@ -52,7 +55,8 @@ fn startup(
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(STAR_RADIUS))),
         MeshMaterial2d(materials.add(Color::BLACK)),
-        Star(Vec3::ZERO),
+        Star,
+        Velocity(Vec3::ZERO),
         Mass(STAR_MASS),
         Transform::from_xyz(0., 0., 0.),
     ));
@@ -60,55 +64,83 @@ fn startup(
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
         MeshMaterial2d(materials.add(Color::WHITE)),
+        Planet,
+        Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS),
-        Planet(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Transform::from_xyz(0., 100., 0.),
     ));
 
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
         MeshMaterial2d(materials.add(Color::WHITE)),
+        Planet,
+        Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS),
-        Planet(Vec3::new(-INITIAL_PLANET_X, 0., 0.)),
-        Transform::from_xyz(0., 200., 0.),
+        Transform::from_xyz(0., 150., 0.),
     ));
 }
 
-fn update_bodies(
-    mut planets: Query<(&Mass, &mut Planet, &mut Transform)>,
-    mut star: Query<(&Mass, &mut Star, &mut Transform), Without<Planet>>,
-) {
-    let (star_mass, mut star_vel, mut star_transform) = star.single_mut();
-    let mut star_a = Vec3::ZERO;
+fn update_bodies(mut body: Query<(Entity, &Mass, &mut Velocity, &mut Transform)>) {
+    // let (star_mass, mut star_vel, mut star_transform) = star.single_mut();
+    // let mut star_a = Vec3::ZERO;
 
-    for (planet_mass, mut planet_vel, mut planet_transform) in planets.iter_mut() {
-        // Find distance
-        let planet_pos = planet_transform.translation;
-        let static_pos = star_transform.translation;
+    // for (planet_mass, mut planet_vel, mut planet_transform) in planets.iter_mut() {
+    //     // Find distance
+    //     let planet_pos = planet_transform.translation;
+    //     let static_pos = star_transform.translation;
 
-        let distance_sq = planet_pos.distance_squared(static_pos);
+    //     let distance_sq = planet_pos.distance_squared(static_pos);
 
-        // Get direction
-        let direction = (static_pos - planet_pos).normalize();
+    //     // Get direction
+    //     let direction = (static_pos - planet_pos).normalize();
 
-        // Get acceleration
-        let a = BIG_G * (star_mass.0 / distance_sq);
-        let a_vec = direction * a;
+    //     // Get acceleration
+    //     let a = BIG_G * (star_mass.0 / distance_sq);
+    //     let a_vec = direction * a;
 
-        star_a += -direction * (BIG_G * (planet_mass.0 / distance_sq));
+    //     star_a += -direction * (BIG_G * (planet_mass.0 / distance_sq));
 
-        // Update velocity
-        planet_vel.0 += a_vec;
+    //     // Update velocity
+    //     planet_vel.0 += a_vec;
 
-        // Update position
-        planet_transform.translation += planet_vel.0;
+    //     // Update position
+    //     planet_transform.translation += planet_vel.0;
+    // }
+
+    // // Update star velocity and position
+    // star_vel.0 += star_a;
+    // star_transform.translation += star_vel.0;
+    thread::sleep(Duration::from_millis(10));
+
+    let mut acc = HashMap::new();
+    for (a_e, a_mass, _, a_transform) in body.iter() {
+        acc.entry(a_e).or_insert(Vec3::new(0., 0., 0.));
+        for (b_e, _, _, b_transform) in body.iter() {
+            if a_e == b_e {
+                continue;
+            }
+
+            let distance_sq = a_transform
+                .translation
+                .distance_squared(b_transform.translation);
+
+            let direction = (b_transform.translation - a_transform.translation).normalize();
+            let a = -direction * (BIG_G * (a_mass.0 / distance_sq));
+
+            let cur = match acc.get(&b_e) {
+                Some(a) => a,
+                None => &Vec3::new(0., 0., 0.),
+            };
+
+            acc.insert(b_e, cur + a);
+        }
     }
 
-    // Update star velocity and position
-    star_vel.0 += star_a;
-    star_transform.translation += star_vel.0;
-
-    thread::sleep(Duration::from_millis(10));
+    // Update
+    for (e, _, mut vel, mut transform) in body.iter_mut() {
+        vel.0 += acc.get(&e).unwrap();
+        transform.translation += vel.0;
+    }
 }
 
 fn recenter_camera(
