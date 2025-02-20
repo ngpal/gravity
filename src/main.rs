@@ -11,7 +11,7 @@ const PLANET_MASS: f32 = 1.;
 const PLANET_RADIUS: f32 = 5.;
 const INITIAL_PLANET_X: f32 = 5.;
 
-const TRAIL_LENGTH: f32 = 10.;
+const TRAIL_LENGTH: f32 = 20.;
 
 #[derive(Component)]
 struct Planet(f32);
@@ -71,31 +71,31 @@ fn startup(
     ));
 
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * 1.2))),
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Planet(PLANET_RADIUS * 1.2),
+        Planet(PLANET_RADIUS),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
-        Mass(PLANET_MASS * 1.2),
-        Transform::from_xyz(0., 200., 0.),
+        Mass(PLANET_MASS),
+        Transform::from_xyz(0., 125., 0.),
     ));
 
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * 1.5))),
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * 2.0))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Planet(PLANET_RADIUS * 1.5),
+        Planet(PLANET_RADIUS * 2.0),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
-        Mass(PLANET_MASS * 1.5),
-        Transform::from_xyz(0., 150., 0.),
+        Mass(PLANET_MASS * 2.0),
+        Transform::from_xyz(0., 200., 0.),
     ));
 }
 
-fn update_bodies(mut body: Query<(Entity, &Mass, &mut Velocity, &mut Transform)>) {
+fn update_bodies(mut bodies: Query<(Entity, &Mass, &mut Velocity, &mut Transform)>) {
     thread::sleep(Duration::from_millis(10));
 
     let mut acc = HashMap::new();
-    for (a_e, a_mass, _, a_transform) in body.iter() {
+    for (a_e, a_mass, _, a_transform) in bodies.iter() {
         acc.entry(a_e).or_insert(Vec3::new(0., 0., 0.));
-        for (b_e, _, _, b_transform) in body.iter() {
+        for (b_e, _, _, b_transform) in bodies.iter() {
             if a_e == b_e {
                 continue;
             }
@@ -117,7 +117,7 @@ fn update_bodies(mut body: Query<(Entity, &Mass, &mut Velocity, &mut Transform)>
     }
 
     // Update
-    for (e, _, mut vel, mut transform) in body.iter_mut() {
+    for (e, _, mut vel, mut transform) in bodies.iter_mut() {
         vel.0 += acc.get(&e).unwrap();
         transform.translation += vel.0;
     }
@@ -177,7 +177,8 @@ fn absorbtion(
 ) {
     let (star_transform, mut star_mass) = star.single_mut();
     for (entity, transform, mass) in planets.iter() {
-        if transform.translation.distance(star_transform.translation) < STAR_RADIUS + PLANET_RADIUS
+        if transform.translation.distance(star_transform.translation)
+            < STAR_RADIUS + PLANET_RADIUS + 2.
         {
             commands.entity(entity).despawn();
             star_mass.0 += mass.0;
