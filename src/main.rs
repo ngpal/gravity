@@ -2,19 +2,19 @@ use std::{thread, time::Duration};
 
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-const BIG_G: f32 = 50.;
+const BIG_G: f32 = 5.;
 
-const STAR_MASS: f32 = 100.;
+const STAR_MASS: f32 = 1000.;
 const STAR_RADIUS: f32 = 10.;
 
 const PLANET_MASS: f32 = 1.;
 const PLANET_RADIUS: f32 = 5.;
 const INITIAL_PLANET_X: f32 = 5.;
 
-const TRAIL_LENGTH: f32 = 100.;
+const TRAIL_LENGTH: f32 = 200.;
 
 #[derive(Component)]
-struct Planet;
+struct Planet(f32);
 
 #[derive(Component)]
 struct Star;
@@ -34,13 +34,7 @@ fn main() {
         .add_systems(Startup, startup)
         .add_systems(
             Update,
-            (
-                update_bodies,
-                recenter_camera,
-                manage_trail,
-                collision_check,
-            )
-                .chain(),
+            (update_bodies, recenter_camera, manage_trail, absorbtion).chain(),
         )
         .run();
 }
@@ -64,7 +58,7 @@ fn startup(
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Planet,
+        Planet(PLANET_RADIUS),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS),
         Transform::from_xyz(0., 100., 0.),
@@ -73,43 +67,23 @@ fn startup(
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Planet,
+        Planet(PLANET_RADIUS),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS),
         Transform::from_xyz(0., 150., 0.),
     ));
+
+    commands.spawn((
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * 1.5))),
+        MeshMaterial2d(materials.add(Color::WHITE)),
+        Planet(PLANET_RADIUS * 1.5),
+        Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
+        Mass(PLANET_MASS * 1.5),
+        Transform::from_xyz(0., 200., 0.),
+    ));
 }
 
 fn update_bodies(mut body: Query<(Entity, &Mass, &mut Velocity, &mut Transform)>) {
-    // let (star_mass, mut star_vel, mut star_transform) = star.single_mut();
-    // let mut star_a = Vec3::ZERO;
-
-    // for (planet_mass, mut planet_vel, mut planet_transform) in planets.iter_mut() {
-    //     // Find distance
-    //     let planet_pos = planet_transform.translation;
-    //     let static_pos = star_transform.translation;
-
-    //     let distance_sq = planet_pos.distance_squared(static_pos);
-
-    //     // Get direction
-    //     let direction = (static_pos - planet_pos).normalize();
-
-    //     // Get acceleration
-    //     let a = BIG_G * (star_mass.0 / distance_sq);
-    //     let a_vec = direction * a;
-
-    //     star_a += -direction * (BIG_G * (planet_mass.0 / distance_sq));
-
-    //     // Update velocity
-    //     planet_vel.0 += a_vec;
-
-    //     // Update position
-    //     planet_transform.translation += planet_vel.0;
-    // }
-
-    // // Update star velocity and position
-    // star_vel.0 += star_a;
-    // star_transform.translation += star_vel.0;
     thread::sleep(Duration::from_millis(10));
 
     let mut acc = HashMap::new();
@@ -157,11 +131,11 @@ fn manage_trail(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut trails: Query<(Entity, &mut Transform, &mut Trail)>,
-    planets: Query<&Transform, (With<Planet>, Without<Trail>)>,
+    planets: Query<(&Transform, &Planet), Without<Trail>>,
 ) {
-    for &transform in planets.iter() {
+    for (&transform, &ref planet) in planets.iter() {
         commands.spawn((
-            Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
+            Mesh2d(meshes.add(Circle::new(planet.0))),
             MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.25))),
             Trail(TRAIL_LENGTH),
             transform,
@@ -178,15 +152,17 @@ fn manage_trail(
     }
 }
 
-fn collision_check(
+fn absorbtion(
     mut commands: Commands,
-    planets: Query<(Entity, &Transform), With<Planet>>,
-    star: Query<&Transform, (With<Star>, Without<Planet>)>,
+    mut star: Query<(&Transform, &mut Mass), (With<Star>, Without<Planet>)>,
+    planets: Query<(Entity, &Transform, &Mass), With<Planet>>,
 ) {
-    let star_translation = star.single().translation;
-    for (entity, transform) in planets.iter() {
-        if transform.translation.distance(star_translation) < STAR_RADIUS + PLANET_RADIUS {
+    let (star_transform, mut star_mass) = star.single_mut();
+    for (entity, transform, mass) in planets.iter() {
+        if transform.translation.distance(star_transform.translation) < STAR_RADIUS + PLANET_RADIUS
+        {
             commands.entity(entity).despawn();
+            star_mass.0 += mass.0;
         }
     }
 }
