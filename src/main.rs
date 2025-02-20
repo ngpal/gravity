@@ -1,15 +1,17 @@
 use std::{thread, time::Duration};
 
-use bevy::{core::FrameCount, prelude::*, utils::hashbrown::HashMap};
+use bevy::{
+    core::FrameCount, input::gestures::PinchGesture, prelude::*, utils::hashbrown::HashMap,
+};
 
-const BIG_G: f32 = 5.;
+const BIG_G: f32 = 50.;
 
-const STAR_MASS: f32 = 1000.;
+const STAR_MASS: f32 = 100.;
 const STAR_RADIUS: f32 = 10.;
 
 const PLANET_MASS: f32 = 1.;
 const PLANET_RADIUS: f32 = 5.;
-const INITIAL_PLANET_X: f32 = 5.;
+const INITIAL_PLANET_X: f32 = 5.6;
 
 const TRAIL_LENGTH: f32 = 30.;
 
@@ -41,6 +43,7 @@ fn main() {
                 recenter_camera,
                 (create_trail, clean_trail).run_if(skip_frames),
                 absorbtion,
+                zoom,
             )
                 .chain(),
         )
@@ -69,7 +72,17 @@ fn startup(
         Planet(PLANET_RADIUS),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS),
-        Transform::from_xyz(0., 100., 0.),
+        Transform::from_xyz(0., 75., 0.),
+    ));
+
+    let modifier = 1.;
+    commands.spawn((
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * modifier))),
+        MeshMaterial2d(materials.add(Color::WHITE)),
+        Planet(PLANET_RADIUS * modifier),
+        Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
+        Mass(PLANET_MASS * modifier),
+        Transform::from_xyz(0., 150., 0.),
     ));
 
     let modifier = 1.5;
@@ -79,16 +92,7 @@ fn startup(
         Planet(PLANET_RADIUS * modifier),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS * modifier),
-        Transform::from_xyz(0., 160., 0.),
-    ));
-
-    commands.spawn((
-        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * 2.0))),
-        MeshMaterial2d(materials.add(Color::WHITE)),
-        Planet(PLANET_RADIUS * 2.0),
-        Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
-        Mass(PLANET_MASS * 2.0),
-        Transform::from_xyz(0., 190., 0.),
+        Transform::from_xyz(0., 200., 0.),
     ));
 }
 
@@ -185,6 +189,22 @@ fn absorbtion(
         {
             commands.entity(entity).despawn();
             star_mass.0 += mass.0;
+        }
+    }
+}
+
+fn zoom(
+    mut evr_gesture_pinch: EventReader<PinchGesture>,
+    mut query_camera: Query<&mut OrthographicProjection, With<Camera2d>>,
+) {
+    for ev_pinch in evr_gesture_pinch.read() {
+        let mut projection = query_camera.single_mut();
+        projection.scale += ev_pinch.0 * -0.8;
+
+        if projection.scale < 0.1 {
+            projection.scale = 0.1
+        } else if projection.scale > 10.0 {
+            projection.scale = 10.0
         }
     }
 }
