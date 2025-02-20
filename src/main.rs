@@ -1,6 +1,6 @@
 use std::{thread, time::Duration};
 
-use bevy::{prelude::*, utils::hashbrown::HashMap};
+use bevy::{core::FrameCount, prelude::*, utils::hashbrown::HashMap};
 
 const BIG_G: f32 = 5.;
 
@@ -11,7 +11,7 @@ const PLANET_MASS: f32 = 1.;
 const PLANET_RADIUS: f32 = 5.;
 const INITIAL_PLANET_X: f32 = 5.;
 
-const TRAIL_LENGTH: f32 = 200.;
+const TRAIL_LENGTH: f32 = 10.;
 
 #[derive(Component)]
 struct Planet(f32);
@@ -34,7 +34,13 @@ fn main() {
         .add_systems(Startup, startup)
         .add_systems(
             Update,
-            (update_bodies, recenter_camera, manage_trail, absorbtion).chain(),
+            (
+                update_bodies,
+                recenter_camera,
+                (create_trail, clean_trail).run_if(skip_frames),
+                absorbtion,
+            )
+                .chain(),
         )
         .run();
 }
@@ -65,12 +71,12 @@ fn startup(
     ));
 
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS))),
+        Mesh2d(meshes.add(Circle::new(PLANET_RADIUS * 1.2))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Planet(PLANET_RADIUS),
+        Planet(PLANET_RADIUS * 1.2),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
-        Mass(PLANET_MASS),
-        Transform::from_xyz(0., 150., 0.),
+        Mass(PLANET_MASS * 1.2),
+        Transform::from_xyz(0., 200., 0.),
     ));
 
     commands.spawn((
@@ -79,7 +85,7 @@ fn startup(
         Planet(PLANET_RADIUS * 1.5),
         Velocity(Vec3::new(INITIAL_PLANET_X, 0., 0.)),
         Mass(PLANET_MASS * 1.5),
-        Transform::from_xyz(0., 200., 0.),
+        Transform::from_xyz(0., 150., 0.),
     ));
 }
 
@@ -126,11 +132,14 @@ fn recenter_camera(
     camera.translation = star_translate
 }
 
-fn manage_trail(
+fn skip_frames(time: Res<FrameCount>) -> bool {
+    time.0 % 2 == 0
+}
+
+fn create_trail(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut trails: Query<(Entity, &mut Transform, &mut Trail)>,
     planets: Query<(&Transform, &Planet), Without<Trail>>,
 ) {
     for (&transform, &ref planet) in planets.iter() {
@@ -141,15 +150,24 @@ fn manage_trail(
             transform,
         ));
     }
+}
 
-    for (entity, mut transform, mut trail) in trails.iter_mut() {
-        trail.0 -= 1.;
-        transform.scale -= 1. / TRAIL_LENGTH;
+fn clean_trail(
+    par_commands: ParallelCommands,
+    mut trails: Query<(Entity, &mut Transform, &mut Trail)>,
+) {
+    trails
+        .par_iter_mut()
+        .for_each(|(entity, mut transform, mut trail)| {
+            trail.0 -= 1.;
+            transform.scale -= 1. / TRAIL_LENGTH;
 
-        if trail.0 == 0. {
-            commands.entity(entity).despawn();
-        }
-    }
+            if trail.0 == 0. {
+                par_commands.command_scope(|mut commands| {
+                    commands.entity(entity).despawn();
+                })
+            }
+        })
 }
 
 fn absorbtion(
